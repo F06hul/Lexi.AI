@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lexi.AI Chat Assistant</title>
+    <link rel="stylesheet" href="Styles.css">
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <button class="clear-button" onclick="clearChat()">Bersihkan Chat</button>
+            <h1>Lexi.AI</h1>
+            <div class="status">
+                <span class="status-indicator"></span>
+                Online - Siap membantu Anda
+            </div>
+        </div>
+
+        <div class="chat-messages" id="chatMessages">
+            <div class="welcome-message">
+                <h2>Selamat datang! 👋</h2>
+                <p>Saya adalah Lexi.AI Assistant yang siap membantu Anda. Apa yang bisa saya bantu hari ini?</p>
+                <div class="welcome-suggestions">
+                    <div class="suggestion-chip" onclick="sendSuggestion('Jelaskan tentang kecerdasan buatan')">
+                        Tentang AI
+                    </div>
+                    <div class="suggestion-chip" onclick="sendSuggestion('Buatkan contoh kode')">
+                        Coding Help
+                    </div>
+                    <div class="suggestion-chip" onclick="sendSuggestion('Berikan tips belajar')">
+                        Tips Belajar
+                    </div>
+                    <div class="suggestion-chip" onclick="sendSuggestion('Ceritakan tentang teknologi terbaru')">
+                        Tech News
+                    </div>
+                </div>
+            </div>
+        
+            <div class="typing-indicator" id="typingIndicator">
+                <div class="message-avatar">
+                    Lexi
+                </div>
+                <div class="typing-content">
+                    <div class="typing-dots">
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-input-container">
+            <div class="chat-input-wrapper">
+                <textarea
+                    id="chatInput"
+                    class="chat-input"
+                    placeholder="Tanyakan apa saja kepada Lexi.AI..."
+                    rows="1"
+                    maxlength="2000"
+                ></textarea>
+                <button class="send-button" id="sendButton">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="input-info">
+                <span class="char-counter" id="charCounter">0/2000</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+        <p>Lexi.AI sedang berfikir...</p>
+    </div>
+    <script src="AI_07_F1.js"></script>
+</body>
+</html>
