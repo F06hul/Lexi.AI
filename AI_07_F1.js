@@ -697,31 +697,6 @@ function fallbackCopyTextToClipboard(text, button) {
     document.body.removeChild(textArea);
 }
 
-function showNotification(message, type = 'info') {
-    console.log(`${type.toUpperCase()}: ${message}`);
-    const notification = document.createElement('div');
-    notification.textContent = message;
-    notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: ${type === 'error' ? '#dc2626' : type === 'success' ? '#16a34a' : '#2563eb'};
-        color: white;
-        padding: 12px 20px;
-        border-radius: 8px;
-        z-index: 9999;
-        font-size: 14px;
-        max-width: 300px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    `;
-    
-    document.body.appendChild(notification);
-    
-    setTimeout(() => {
-        notification.remove();
-    }, 4000);
-}
-
 const style = document.createElement('style');
 style.textContent = `
     @keyframes slideInRight {
