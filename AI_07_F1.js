@@ -1,6 +1,10 @@
 let messageHistory = [];
 let conversationHistory = [];
 let isProcessing = false;
+let requestCount = 0;
+let lastRequestTime = 0;
+const REQUEST_DELAY = 2000;
+const MAX_REQUESTS_PER_MINUTE = 10;
 
 document.addEventListener('DOMContentLoaded', function() {
     initializeChat();
@@ -17,6 +21,11 @@ function setupEventListeners() {
     const input = document.getElementById('chatInput');
     const sendButton = document.getElementById('sendButton');
     
+    if (!input || !sendButton) {
+        console.error('Required elements not found');
+        return;
+    }
+    
     input.addEventListener('keydown', handleKeyPress);
     input.addEventListener('input', handleInputChange);
     input.addEventListener('paste', handlePaste);
@@ -24,12 +33,6 @@ function setupEventListeners() {
     sendButton.addEventListener('click', sendMessage);
     
     window.addEventListener('resize', adjustLayout);
-    
-    input.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-        }
-    });
 }
 
 function handleKeyPress(event) {
@@ -48,8 +51,10 @@ function handleInputChange(event) {
     const sendButton = document.getElementById('sendButton');
     const hasText = event.target.value.trim().length > 0;
     
-    sendButton.style.opacity = hasText ? '1' : '0.7';
-    sendButton.style.transform = hasText ? 'scale(1)' : 'scale(0.95)';
+    if (sendButton) {
+        sendButton.style.opacity = hasText ? '1' : '0.7';
+        sendButton.style.transform = hasText ? 'scale(1)' : 'scale(0.95)';
+    }
 }
 
 function handlePaste(event) {
@@ -60,51 +65,100 @@ function handlePaste(event) {
 }
 
 function adjustTextareaHeight(textarea) {
+    if (!textarea) return;
+    
     textarea.style.height = 'auto';
     const newHeight = Math.min(textarea.scrollHeight, 120);
     textarea.style.height = newHeight + 'px';
+    
     const container = document.querySelector('.chat-input-container');
-    const baseHeight = 100;
-    const extraHeight = Math.max(0, newHeight - 50);
-    container.style.paddingBottom = (20 + extraHeight * 0.3) + 'px';
+    if (container) {
+        const baseHeight = 100;
+        const extraHeight = Math.max(0, newHeight - 50);
+        container.style.paddingBottom = (20 + extraHeight * 0.3) + 'px';
+    }
 }
 
 function updateCharCounter() {
     const input = document.getElementById('chatInput');
     const counter = document.getElementById('charCounter');
+    
+    if (!input || !counter) return;
+    
     const currentLength = input.value.length;
-    const maxLength = input.getAttribute('maxlength') || 2000; 
+    const maxLength = parseInt(input.getAttribute('maxlength')) || 2000;
+    
     counter.textContent = `${currentLength}/${maxLength}`;
-            if (currentLength > maxLength * 0.9) {
-                    counter.style.color = '#dc2626';
-                } else if (currentLength > maxLength * 0.7) {
-                        counter.style.color = '#d97706';
-            } else {
-            counter.style.color = '#64748b';
+    
+    if (currentLength > maxLength * 0.9) {
+        counter.style.color = '#dc2626';
+    } else if (currentLength > maxLength * 0.7) {
+        counter.style.color = '#d97706';
+    } else {
+        counter.style.color = '#64748b';
     }
 }
 
+function canMakeRequest() {
+    const now = Date.now();
+    
+    if (now - lastRequestTime > 60000) {
+        requestCount = 0;
+    }
+    
+    if (now - lastRequestTime < REQUEST_DELAY) {
+        return false;
+    }
+    
+    if (requestCount >= MAX_REQUESTS_PER_MINUTE) {
+        return false;
+    }
+    
+    return true;
+}
+
 async function sendMessage() {
-    if (isProcessing) return;
+    if (isProcessing) {
+        console.log('Already processing a message');
+        return;
+    }
     
     const input = document.getElementById('chatInput');
+    if (!input) return;
+    
     const message = input.value.trim();
     
     if (message === '') return;
+    
     if (message.length > 2000) {
         showNotification('Pesan terlalu panjang! Maksimal 2000 karakter.', 'error');
         return;
     }
+    
+    if (!canMakeRequest()) {
+        const timeLeft = Math.ceil((REQUEST_DELAY - (Date.now() - lastRequestTime)) / 1000);
+        showNotification(`Tunggu ${timeLeft} detik sebelum mengirim pesan lagi.`, 'warning');
+        return;
+    }
+    
     isProcessing = true;
+    requestCount++;
+    lastRequestTime = Date.now();
+    
     hideWelcomeMessage();
     addMessage('user', message);
+    
     input.value = '';
     input.style.height = 'auto';
     updateCharCounter();
     showTypingIndicator();
+    
     const sendButton = document.getElementById('sendButton');
-    sendButton.disabled = true;
-    sendButton.style.opacity = '0.5';
+    if (sendButton) {
+        sendButton.disabled = true;
+        sendButton.style.opacity = '0.5';
+    }
+    
     try {
         const response = await getAIResponse(message);
         hideTypingIndicator();
@@ -115,28 +169,44 @@ async function sendMessage() {
         console.error('Error:', error);
         hideTypingIndicator();
         
-        let errorMessage = 'Maaf, terjadi kesalahan saat menghubungi AI. ';
-        if (error.message.includes('API Key')) {
-            errorMessage += 'Periksa API Key Anda.';
-        } else if (error.message.includes('429')) {
-            errorMessage += 'Terlalu banyak permintaan. Coba lagi nanti.';
-        } else if (error.message.includes('403')) {
-            errorMessage += 'Akses ditolak. Periksa quota API Anda.';
-        } else {
-            errorMessage += 'Periksa koneksi internet Anda.';
-        }
-        
+        let errorMessage = handleErrorMessage(error);
         addMessage('ai', errorMessage);
+        
     } finally {
-        sendButton.disabled = false;
-        sendButton.style.opacity = '1';
+        if (sendButton) {
+            sendButton.disabled = false;
+            sendButton.style.opacity = '1';
+        }
         isProcessing = false;
         focusInput();
     }
 }
 
+function handleErrorMessage(error) {
+    let errorMessage = 'Maaf, terjadi kesalahan saat menghubungi AI. ';
+    
+    if (error.message.includes('API Key') || error.message.includes('401')) {
+        errorMessage += 'API Key tidak valid atau telah kedaluwarsa.';
+    } else if (error.message.includes('429') || error.message.includes('Too Many Requests')) {
+        errorMessage += 'Terlalu banyak permintaan. Tunggu beberapa menit sebelum mencoba lagi.';
+        requestCount = MAX_REQUESTS_PER_MINUTE;
+    } else if (error.message.includes('403')) {
+        errorMessage += 'Akses ditolak. Periksa quota API Anda atau batas penggunaan.';
+    } else if (error.message.includes('500') || error.message.includes('502') || error.message.includes('503')) {
+        errorMessage += 'Server AI sedang bermasalah. Coba lagi dalam beberapa menit.';
+    } else if (error.message.includes('timeout') || error.message.includes('network')) {
+        errorMessage += 'Koneksi timeout. Periksa koneksi internet Anda.';
+    } else {
+        errorMessage += 'Periksa koneksi internet Anda dan coba lagi.';
+    }
+    
+    return errorMessage;
+}
+
 function addMessage(sender, text, timestamp = null) {
     const messagesContainer = document.getElementById('chatMessages');
+    if (!messagesContainer) return;
+    
     const messageDiv = document.createElement('div');
     const time = timestamp || new Date().toLocaleTimeString('id-ID', {
         hour: '2-digit',
@@ -155,7 +225,11 @@ function addMessage(sender, text, timestamp = null) {
     `;
 
     const typingIndicator = document.getElementById('typingIndicator');
-    messagesContainer.insertBefore(messageDiv, typingIndicator);
+    if (typingIndicator) {
+        messagesContainer.insertBefore(messageDiv, typingIndicator);
+    } else {
+        messagesContainer.appendChild(messageDiv);
+    }
     
     if (!timestamp || timestamp === time) {
         messageHistory.push({
@@ -196,6 +270,7 @@ function formatResponse(text) {
 
     text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
     text = text.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em>$1</em>');
+    
     if (/^\d+\.\s/m.test(text)) {
         text = formatOrderedList(text);
     }
@@ -206,6 +281,7 @@ function formatResponse(text) {
     
     text = text.replace(/\n{2,}/g, "</p><p>");
     text = text.replace(/\n/g, "<br>");
+    
     for (let i = 0; i < codeBlocks.length; i++) {
         const block = codeBlocks[i];
         const formattedCode = `
@@ -225,6 +301,7 @@ function formatResponse(text) {
     for (let i = 0; i < inlineCodes.length; i++) {
         text = text.replace(`__INLINECODE_${i}__`, `<code class="inline-code">${escapeHtml(inlineCodes[i])}</code>`);
     }
+    
     if (!text.includes('<') && !text.includes('>')) {
         return `<p>${text}</p>`;
     }
@@ -305,14 +382,13 @@ function escapeHtml(text) {
 }
 
 async function getAIResponse(prompt) {
-    const apiKey = "AIzaSyCB2WT0-KYhXVFS09HnGZd01Uuidvp_5k4";
+    const apiKey = "AIzaSyDRarIaHOw_u5fPvHge0GQS7ck4tkKd1nA";
     
     if (!apiKey || apiKey === "YOUR_GEMINI_API_KEY_HERE") {
         throw new Error('API Key tidak ditemukan. Harap masukkan API Key Gemini Anda.');
     }
     
     const endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
-    
     if (conversationHistory.length === 0) {
         conversationHistory.push({
             role: "user",
@@ -333,53 +409,84 @@ async function getAIResponse(prompt) {
         parts: [{ text: prompt }]
     });
     
-    const response = await fetch(`${endpoint}?key=${apiKey}`, {
-        method: "POST",
-        headers: { 
-            "Content-Type": "application/json",
-            "Accept": "application/json"
-        },
-        body: JSON.stringify({
-            contents: conversationHistory,
-            generationConfig: {
-                temperature: 0.7,
-                topK: 40,
-                topP: 0.95,
-                maxOutputTokens: 2048,
-            }
-        }),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
     
-    if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    
-    if (data.candidates && 
-        data.candidates.length > 0 && 
-        data.candidates[0].content && 
-        data.candidates[0].content.parts && 
-        data.candidates[0].content.parts.length > 0) {
-        
-        const aiResponse = data.candidates[0].content.parts[0].text;
-        
-        conversationHistory.push({
-            role: "model",
-            parts: [{ text: aiResponse }]
+    try {
+        const response = await fetch(`${endpoint}?key=${apiKey}`, {
+            method: "POST",
+            headers: { 
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            },
+            body: JSON.stringify({
+                contents: conversationHistory,
+                generationConfig: {
+                    temperature: 0.7,
+                    topK: 40,
+                    topP: 0.95,
+                    maxOutputTokens: 2048,
+                },
+                safetySettings: [
+                    {
+                        category: "HARM_CATEGORY_HARASSMENT",
+                        threshold: "BLOCK_MEDIUM_AND_ABOVE"
+                    },
+                    {
+                        category: "HARM_CATEGORY_HATE_SPEECH",
+                        threshold: "BLOCK_MEDIUM_AND_ABOVE"
+                    }
+                ]
+            }),
+            signal: controller.signal
         });
-        if (conversationHistory.length > 32) {
-            const systemMessages = conversationHistory.slice(0, 2);
-            const recentMessages = conversationHistory.slice(-28);
-            conversationHistory = [...systemMessages, ...recentMessages];
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('API Error Response:', errorText);
+            throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`);
         }
         
-        saveConversationHistory();
-        return aiResponse;
+        const data = await response.json();
         
-    } else {
-        console.error('Invalid response structure:', data);
-        throw new Error('AI gagal memberikan balasan yang valid.');
+        if (data.candidates && 
+            data.candidates.length > 0 && 
+            data.candidates[0].content && 
+            data.candidates[0].content.parts && 
+            data.candidates[0].content.parts.length > 0) {
+            
+            const aiResponse = data.candidates[0].content.parts[0].text;
+            
+            conversationHistory.push({
+                role: "model",
+                parts: [{ text: aiResponse }]
+            });
+            /*Hul*/
+            if (conversationHistory.length > 32) {
+                const systemMessages = conversationHistory.slice(0, 2);
+                const recentMessages = conversationHistory.slice(-28);
+                conversationHistory = [...systemMessages, ...recentMessages];
+            }
+            
+            saveConversationHistory();
+            return aiResponse;
+            
+        } else {
+            console.error('Invalid response structure:', data);
+            throw new Error('AI gagal memberikan balasan yang valid.');
+        }
+        
+    } catch (error) {
+        clearTimeout(timeoutId);
+        
+        if (error.name === 'AbortError') {
+            throw new Error('Request timeout - koneksi terlalu lambat');
+        }
+        
+        console.error('API Request Error:', error);
+        throw error;
     }
 }
 
@@ -423,6 +530,8 @@ function clearChat() {
     }
     
     const messagesContainer = document.getElementById('chatMessages');
+    if (!messagesContainer) return;
+    
     messagesContainer.innerHTML = `
         <div class="welcome-message">
             <h2>Selamat datang! 👋</h2>
@@ -461,7 +570,8 @@ function clearChat() {
     messageHistory = [];
     conversationHistory = [];
     isProcessing = false;
-
+    requestCount = 0;
+    
     const sendButton = document.getElementById('sendButton');
     if (sendButton) {
         sendButton.disabled = false;
@@ -494,7 +604,13 @@ function scrollToBottom() {
 function focusInput() {
     const input = document.getElementById('chatInput');
     if (input && !isProcessing) {
-        setTimeout(() => input.focus(), 100);
+        setTimeout(() => {
+            try {
+                input.focus();
+            } catch (e) {
+            
+            }
+        }, 100);
     }
 }
 
@@ -508,7 +624,6 @@ function adjustLayout() {
 
 function saveChatHistory() {
     try {
-        const data = JSON.stringify(messageHistory);
         console.log('Chat history would be saved:', messageHistory.length + ' messages');
     } catch (error) {
         console.log('Cannot save chat history:', error);
@@ -517,7 +632,6 @@ function saveChatHistory() {
 
 function saveConversationHistory() {
     try {
-        const data = JSON.stringify(conversationHistory);
         console.log('Conversation history would be saved:', conversationHistory.length + ' messages');
     } catch (error) {
         console.log('Cannot save conversation history:', error);
@@ -583,6 +697,31 @@ function fallbackCopyTextToClipboard(text, button) {
     document.body.removeChild(textArea);
 }
 
+function showNotification(message, type = 'info') {
+    console.log(`${type.toUpperCase()}: ${message}`);
+    const notification = document.createElement('div');
+    notification.textContent = message;
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: ${type === 'error' ? '#dc2626' : type === 'success' ? '#16a34a' : '#2563eb'};
+        color: white;
+        padding: 12px 20px;
+        border-radius: 8px;
+        z-index: 9999;
+        font-size: 14px;
+        max-width: 300px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    `;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.remove();
+    }, 4000);
+}
+
 const style = document.createElement('style');
 style.textContent = `
     @keyframes slideInRight {
@@ -602,7 +741,8 @@ if (typeof module !== 'undefined' && module.exports) {
         escapeHtml,
         getAIResponse,
         copyCode,
-        showNotification
+        showNotification,
+        canMakeRequest,
+        handleErrorMessage
     };
-
 }
