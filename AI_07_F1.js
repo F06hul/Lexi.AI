@@ -432,10 +432,10 @@ function clearChat() {
                 <div class="suggestion-chip" onclick="sendSuggestion('Jelaskan tentang kecerdasan buatan')">
                     Tentang AI
                 </div>
-                <div class="suggestion-chip" onclick="sendSuggestion('Buatkan contoh kode JavaScript')">
+                <div class="suggestion-chip" onclick="sendSuggestion('Buatkan contoh kode')">
                     Coding Help
                 </div>
-                <div class="suggestion-chip" onclick="sendSuggestion('Berikan tips belajar pemrograman')">
+                <div class="suggestion-chip" onclick="sendSuggestion('Berikan tips belajar')">
                     Tips Belajar
                 </div>
                 <div class="suggestion-chip" onclick="sendSuggestion('Ceritakan tentang teknologi terbaru')">
@@ -604,4 +604,5 @@ if (typeof module !== 'undefined' && module.exports) {
         copyCode,
         showNotification
     };
+
 }
