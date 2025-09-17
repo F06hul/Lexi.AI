@@ -382,7 +382,7 @@ function escapeHtml(text) {
 }
 
 async function getAIResponse(prompt) {
-    const apiKey = "AIzaSyDRarIaHOw_u5fPvHge0GQS7ck4tkKd1nA";
+    const apiKey = "";
     
     if (!apiKey || apiKey === "YOUR_GEMINI_API_KEY_HERE") {
         throw new Error('API Key tidak ditemukan. Harap masukkan API Key Gemini Anda.');
@@ -721,3 +721,4 @@ if (typeof module !== 'undefined' && module.exports) {
         handleErrorMessage
     };
 }
+
